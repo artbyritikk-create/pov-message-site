@@ -1,0 +1,1270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Message Booth">
+<title>Message Booth</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#efece6">
+<style>
+  :root {
+    --bg: #efece6;
+    --text: #2a2a2a;
+    --accent: #ffffff;
+    --accent-text: #111111;
+    --dim: 0;
+    --title-font: "Didot","Bodoni 72","Playfair Display",Georgia,serif;
+    --body-font: "Didot","Bodoni 72","Playfair Display",Georgia,serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; -webkit-user-select: none; user-select: none; }
+  input, select { -webkit-user-select: text; user-select: text; }
+  html, body {
+    margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+    background: #000; overscroll-behavior: none; touch-action: manipulation;
+    font-family: var(--body-font);
+  }
+  #app { position: fixed; top: 0; left: 0; right: 0; bottom: 0; }
+  .screen { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: none; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* ---------- Welcome ---------- */
+  #welcome {
+    align-items: center; justify-content: center; text-align: center;
+    background: var(--bg) center / cover no-repeat; color: var(--text);
+    transition: padding-left .2s;
+  }
+  #welcome::before {
+    content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,var(--dim)); pointer-events: none;
+  }
+  .w-content {
+    position: relative; z-index: 1; display: flex; flex-direction: column;
+    align-items: center; padding: 0 24px; max-width: 100%;
+  }
+  #eventTitle {
+    font-family: var(--title-font); font-weight: 400; margin: 0 0 10px;
+    font-size: clamp(2.4rem, 6vw, 4.2rem); line-height: 1.1;
+  }
+  #eventSubtitle { font-size: clamp(1rem, 2.4vw, 1.4rem); opacity: .8; margin: 0 0 44px; letter-spacing: .04em; }
+  #eventSubtitle:empty { display: none; }
+  #modeButtons { display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; }
+  .mode-btn {
+    cursor: pointer; border: 1px solid rgba(0,0,0,.14); background: var(--accent); color: var(--accent-text);
+    font-family: var(--body-font); box-shadow: 0 6px 24px rgba(0,0,0,.12);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .mode-btn:active { transform: scale(.97); }
+  .style-tile .mode-btn { flex-direction: column; gap: 12px; width: 170px; height: 170px; border-radius: 26px; font-size: 1rem; }
+  .style-tile .mode-btn svg { width: 56px; height: 56px; }
+  .style-pill .mode-btn { flex-direction: row; gap: 12px; padding: 20px 40px; border-radius: 50px; font-size: 1.2rem; font-weight: 600; }
+  .style-pill .mode-btn svg { width: 28px; height: 28px; }
+  #eventHint { margin: 30px 0 0; font-size: 1rem; opacity: .7; letter-spacing: .05em; }
+  #eventHint:empty { display: none; }
+  #eventFooter {
+    position: absolute; left: 0; right: 0; z-index: 1;
+    bottom: calc(24px + env(safe-area-inset-bottom));
+    font-size: .8rem; letter-spacing: .2em; text-transform: uppercase; opacity: .6;
+  }
+  #gearBtn {
+    position: absolute; z-index: 2; top: calc(10px + env(safe-area-inset-top)); right: 10px;
+    background: none; border: none; color: var(--text); opacity: .25; font-size: 24px; padding: 14px; cursor: pointer;
+  }
+
+  /* ---------- Recording ---------- */
+  #recording { background: var(--bg); }
+  #video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; background: #000; }
+  #video.mirror { transform: scaleX(-1); }
+  #recording.audio-mode #video { display: none; }
+  #audioStage {
+    display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    align-items: center; justify-content: center; flex-direction: column; gap: 24px; color: var(--text);
+  }
+  #recording.audio-mode #audioStage { display: flex; }
+  .pulse {
+    width: 150px; height: 150px; border-radius: 50%; background: var(--accent); color: var(--accent-text);
+    border: 1px solid rgba(0,0,0,.14); display: flex; align-items: center; justify-content: center;
+    animation: pulse 1.6s infinite;
+  }
+  .pulse svg { width: 64px; height: 64px; }
+  @keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(200,50,50,.45); }
+    70% { box-shadow: 0 0 0 40px rgba(200,50,50,0); }
+    100% { box-shadow: 0 0 0 0 rgba(200,50,50,0); }
+  }
+  .rec-overlay { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; pointer-events: none; }
+  .rec-top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: calc(16px + env(safe-area-inset-top)) 16px 16px;
+  }
+  .rec-top > * { pointer-events: auto; }
+  .icon-btn {
+    background: rgba(0,0,0,.5); border: none; color: #fff; border-radius: 50%;
+    width: 46px; height: 46px; font-size: 20px; cursor: pointer;
+  }
+  #timerBadge {
+    display: flex; align-items: center; gap: 8px; background: rgba(0,0,0,.5); color: #fff; font-weight: 700;
+    font-variant-numeric: tabular-nums; padding: 9px 18px; border-radius: 22px; font-size: 1.2rem; font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  .rec-dot { width: 10px; height: 10px; border-radius: 50%; background: #ff3b30; display: none; animation: blink 1s infinite; }
+  .rec-dot.on { display: block; }
+  @keyframes blink { 50% { opacity: .25; } }
+  #getReady {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(60px + env(safe-area-inset-bottom));
+    background: rgba(0,0,0,.5); color: #fff; padding: 10px 22px; border-radius: 20px; font-weight: 600;
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #doneBtn {
+    position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(40px + env(safe-area-inset-bottom));
+    pointer-events: auto; display: none; cursor: pointer;
+    background: var(--accent); color: var(--accent-text); border: 1px solid rgba(0,0,0,.14);
+    font-weight: 700; font-size: 1.15rem; padding: 17px 50px; border-radius: 40px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.25); font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #doneBtn.visible { display: block; }
+
+  /* ---------- Review ---------- */
+  #review { background: #000; }
+  #reviewStage { flex: 1 1 0; min-height: 0; position: relative; background: #000; display: flex; align-items: center; justify-content: center; }
+  #reviewVideo { width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #reviewAudioWrap { display: none; flex-direction: column; align-items: center; gap: 24px; color: #fff; width: 100%; padding: 0 30px; }
+  #reviewAudioWrap svg { width: 80px; height: 80px; }
+  #reviewAudio { width: min(520px, 100%); }
+  #review.audio-mode #reviewVideo { display: none; }
+  #review.audio-mode #reviewAudioWrap { display: flex; }
+  .review-buttons {
+    display: flex; gap: 16px; flex-shrink: 0; background: #000;
+    padding: 18px 18px calc(18px + env(safe-area-inset-bottom));
+  }
+  .review-buttons button {
+    flex: 1; padding: 20px; font-size: 1.15rem; font-weight: 700; border: none; border-radius: 16px; cursor: pointer;
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #discardBtn { background: rgba(255,255,255,.15); color: #fff; }
+  #saveBtn { background: var(--accent); color: var(--accent-text); }
+  #saveBtn:disabled { opacity: .5; }
+
+  /* ---------- Password modal ---------- */
+  #passwordModal {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 50; display: none;
+    align-items: center; justify-content: center; background: rgba(0,0,0,.65);
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #passwordModal.active { display: flex; }
+  .modal-box { background: #1c1c1e; border-radius: 20px; padding: 30px; width: 300px; text-align: center; color: #fff; }
+  .modal-box h3 { margin: 0 0 18px; }
+  .modal-box input {
+    width: 100%; padding: 14px; border-radius: 10px; border: none; background: rgba(255,255,255,.15);
+    color: #fff; font-size: 1.2rem; text-align: center; margin-bottom: 10px;
+  }
+  #pwError { color: #ff6b6b; font-size: .85rem; height: 18px; }
+  .modal-actions { display: flex; gap: 10px; margin-top: 8px; }
+  .modal-actions button { flex: 1; padding: 13px; border-radius: 10px; border: none; font-weight: 700; font-size: 1rem; cursor: pointer; }
+  #pwCancel { background: rgba(255,255,255,.15); color: #fff; }
+  #pwUnlock { background: #fff; color: #000; }
+
+  /* ---------- Admin panel (slides over left side so welcome screen previews live on the right) ---------- */
+  #admin {
+    position: absolute; top: 0; left: 0; bottom: 0; right: auto; width: min(400px, 100%); z-index: 20;
+    background: #1c1c1e; color: #fff; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    padding: calc(20px + env(safe-area-inset-top)) 18px 50px; box-shadow: 4px 0 30px rgba(0,0,0,.4);
+    font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #admin.active { display: block; }
+  #admin h2 { margin: 0 0 2px; font-size: 1.3rem; }
+  #admin .sub { opacity: .55; font-size: .85rem; margin: 0 0 6px; }
+  #admin h4 { margin: 26px 0 10px; font-size: .75rem; text-transform: uppercase; letter-spacing: .12em; opacity: .55; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: .8rem; opacity: .7; margin-bottom: 6px; }
+  .field input, .field select {
+    width: 100%; padding: 12px; border-radius: 10px; border: none; background: rgba(255,255,255,.1);
+    color: #fff; font-size: 1rem; font-family: inherit;
+  }
+  .field select option { color: #000; }
+  .field input[type=color] { height: 46px; padding: 4px; }
+  .field input[type=range] { padding: 0; }
+  .field input[type=file] { padding: 10px; font-size: .9rem; }
+  .row2 { display: flex; gap: 10px; }
+  .row2 .field { flex: 1; }
+  .admin-btn { width: 100%; padding: 15px; border-radius: 14px; border: none; font-weight: 700; font-size: 1.05rem; cursor: pointer; margin-top: 8px; }
+  #adminDone { background: #fff; color: #000; }
+  #resetDesign { background: rgba(255,255,255,.1); color: #fff; }
+  #removeBgImage { background: rgba(255,80,80,.25); color: #ff8080; }
+  #bgImagePreviewWrap { display: none; margin-top: 10px; }
+  #bgImagePreview { width: 100%; border-radius: 10px; display: block; }
+  .tip { font-size: .78rem; opacity: .5; line-height: 1.45; margin-top: 18px; }
+  #admin .row2 .admin-btn { flex: 1; background: rgba(255,255,255,.1); color: #fff; }
+  #admin .row2 #removeBgImage { background: rgba(255,80,80,.25); color: #ff8080; }
+
+  #gearDot {
+    position: absolute; z-index: 3; top: calc(16px + env(safe-area-inset-top)); right: 16px; width: 11px; height: 11px;
+    border-radius: 50%; background: #ff3b30; display: none; pointer-events: none; box-shadow: 0 0 0 2px rgba(255,255,255,.7);
+  }
+  #gearDot.on { display: block; }
+  #healthBanner { display: none; margin: 10px 0 0; padding: 12px 14px; border-radius: 12px; font-size: .85rem; line-height: 1.45; }
+  #healthBanner.on { display: block; background: rgba(255,190,60,.18); color: #ffd27a; }
+  #healthBanner.on.full { background: rgba(255,80,80,.22); color: #ff9a9a; }
+  .storage { font-size: .82rem; opacity: .85; margin: 0 0 10px; line-height: 1.5; }
+  .storage .bar { height: 8px; border-radius: 4px; background: rgba(255,255,255,.15); overflow: hidden; margin: 6px 0; }
+  .storage .bar i { display: block; height: 100%; background: #6fd08c; }
+  .storage.low .bar i { background: #ffbe3c; }
+  .storage.full .bar i { background: #ff5a5a; }
+  .msg-storage { margin: 0 16px 12px; flex-shrink: 0; }
+
+  /* ---------- Toast ---------- */
+  #toast {
+    position: fixed; left: 50%; bottom: calc(60px + env(safe-area-inset-bottom)); transform: translateX(-50%) translateY(20px);
+    z-index: 40; background: rgba(20,20,20,.88); color: #fff; padding: 16px 30px; border-radius: 40px;
+    font-family: -apple-system, "Helvetica Neue", sans-serif; font-size: 1.05rem; font-weight: 600;
+    opacity: 0; pointer-events: none; transition: opacity .3s, transform .3s; max-width: 90%; text-align: center;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  /* ---------- Image cropper ---------- */
+  #cropper {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 70; display: none; flex-direction: column;
+    background: #111; color: #fff; font-family: -apple-system, "Helvetica Neue", sans-serif;
+  }
+  #cropper.active { display: flex; }
+  #cropTop, #cropBottom { display: flex; align-items: center; gap: 12px; padding: 14px 16px; flex-shrink: 0; }
+  #cropTop { padding-top: calc(14px + env(safe-area-inset-top)); }
+  #cropBottom { padding-bottom: calc(14px + env(safe-area-inset-bottom)); flex-direction: column; align-items: stretch; }
+  #cropTop select, #cropTop button {
+    padding: 11px 14px; border-radius: 10px; border: none; background: rgba(255,255,255,.12); color: #fff; font-size: 1rem; font-family: inherit;
+  }
+  #cropTop select option { color: #000; }
+  #cropTop .grow { flex: 1; }
+  #cropStage { flex: 1 1 0; min-height: 0; display: flex; align-items: center; justify-content: center; padding: 12px; }
+  #cropCanvas { touch-action: none; outline: 2px solid #fff; background: #000; display: block; }
+  #cropZoomRow { display: flex; align-items: center; gap: 12px; font-size: .85rem; opacity: .85; }
+  #cropZoom { flex: 1; }
+  .crop-btns { display: flex; gap: 12px; }
+  .crop-btns button { flex: 1; padding: 16px; border-radius: 14px; border: none; font-weight: 700; font-size: 1.05rem; cursor: pointer; }
+  #cropCancel { background: rgba(255,255,255,.12); color: #fff; }
+  #cropApply { background: #fff; color: #000; }
+  .crop-hint { text-align: center; font-size: .75rem; opacity: .5; }
+
+  /* ---------- Saved messages overlay ---------- */
+  #messages {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 30; display: none; flex-direction: column;
+    background: #1c1c1e; color: #fff; font-family: -apple-system, "Helvetica Neue", sans-serif;
+    padding-top: env(safe-area-inset-top);
+  }
+  #messages.active { display: flex; }
+  .msg-top { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; flex-shrink: 0; }
+  .msg-top h3 { margin: 0; font-size: 1.15rem; }
+  .msg-btn {
+    padding: 11px 16px; border-radius: 10px; border: none; background: rgba(255,255,255,.12); color: #fff;
+    font-size: .95rem; font-weight: 600; cursor: pointer; font-family: inherit;
+  }
+  .msg-btn.primary { background: #fff; color: #000; }
+  .msg-btn.danger { background: rgba(255,80,80,.25); color: #ff8080; }
+  .msg-btn:disabled { opacity: .4; }
+  .msg-actions { display: flex; gap: 10px; padding: 0 16px 12px; flex-wrap: wrap; flex-shrink: 0; }
+  #msgExport {
+    display: none; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 16px 12px; padding: 12px 14px;
+    background: rgba(255,255,255,.08); border-radius: 12px; flex-shrink: 0;
+  }
+  #msgExport.on { display: flex; }
+  #msgExportInfo { flex: 1; font-size: .9rem; min-width: 140px; }
+  #msgList { flex: 1 1 0; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding: 0 16px 16px; }
+  .msg-row {
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px; margin-bottom: 8px;
+    background: rgba(255,255,255,.07); border-radius: 12px;
+  }
+  .msg-row input[type=checkbox] { width: 24px; height: 24px; flex-shrink: 0; }
+  .msg-row .info { flex: 1; min-width: 0; }
+  .msg-row .info .t { font-weight: 600; font-size: .98rem; }
+  .msg-row .info .s { font-size: .8rem; opacity: .6; margin-top: 2px; }
+  .msg-empty { text-align: center; opacity: .5; padding: 50px 20px; }
+  .msg-foot { font-size: .75rem; opacity: .5; padding: 0 16px calc(14px + env(safe-area-inset-bottom)); line-height: 1.45; flex-shrink: 0; }
+  #playModal {
+    position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 80; display: none; background: #000;
+    align-items: center; justify-content: center; flex-direction: column;
+  }
+  #playModal.active { display: flex; }
+  #playVideo { width: 100%; flex: 1 1 0; min-height: 0; object-fit: contain; background: #000; }
+  #playAudio { width: min(520px, 90%); margin: auto; }
+  #playClose {
+    position: absolute; top: calc(14px + env(safe-area-inset-top)); right: 14px; z-index: 2;
+    background: rgba(255,255,255,.2); color: #fff; border: none; border-radius: 50%; width: 46px; height: 46px; font-size: 20px; cursor: pointer;
+  }
+
+  body.admin-open #welcome { padding-left: min(400px, 100%); }
+  body.admin-open #eventFooter { left: min(400px, 100%); }
+  body.admin-open .w-content, body.admin-open #gearBtn { pointer-events: none; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- WELCOME -->
+  <div id="welcome" class="screen active">
+    <button id="gearBtn" aria-label="Settings">&#9881;</button>
+    <span id="gearDot"></span>
+    <div class="w-content">
+      <h1 id="eventTitle"></h1>
+      <p id="eventSubtitle"></p>
+      <div id="modeButtons"></div>
+      <p id="eventHint"></p>
+    </div>
+    <div id="eventFooter"></div>
+  </div>
+
+  <!-- RECORDING -->
+  <div id="recording" class="screen">
+    <video id="video" autoplay playsinline muted></video>
+    <div id="audioStage">
+      <div class="pulse"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5v3M8.5 21.5h7"/></svg></div>
+    </div>
+    <div class="rec-overlay">
+      <div class="rec-top">
+        <button class="icon-btn" id="backBtn" aria-label="Back">&#8592;</button>
+        <div id="timerBadge"><span class="rec-dot" id="recDot"></span><span id="timerText">0:30</span></div>
+      </div>
+      <div id="getReady">Get ready…</div>
+      <button id="doneBtn">Done</button>
+    </div>
+  </div>
+
+  <!-- REVIEW -->
+  <div id="review" class="screen">
+    <div id="reviewStage">
+      <video id="reviewVideo" playsinline controls></video>
+      <div id="reviewAudioWrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5v3M8.5 21.5h7"/></svg>
+        <audio id="reviewAudio" controls></audio>
+      </div>
+    </div>
+    <div class="review-buttons">
+      <button id="discardBtn">&#10005;&nbsp; Discard</button>
+      <button id="saveBtn">&#10003;&nbsp; Save</button>
+    </div>
+  </div>
+
+  <!-- ADMIN -->
+  <div id="admin" class="screen">
+    <h2>Booth Settings</h2>
+    <p class="sub">Changes preview live on the right.</p>
+    <div id="healthBanner"></div>
+
+    <h4>Welcome screen text</h4>
+    <div class="field"><label>Title</label><input id="cfgTitle"></div>
+    <div class="field"><label>Subtitle</label><input id="cfgSubtitle"></div>
+    <div class="field"><label>Hint line (under buttons)</label><input id="cfgHint"></div>
+    <div class="field"><label>Footer (small caps at bottom)</label><input id="cfgFooter"></div>
+
+    <h4>Buttons</h4>
+    <div class="field"><label>Message types offered</label>
+      <select id="cfgModes">
+        <option value="both">Video + Voice (guest chooses)</option>
+        <option value="video">Video only</option>
+        <option value="audio">Voice only</option>
+      </select>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Video button label</label><input id="cfgVideoLabel"></div>
+      <div class="field"><label>Voice button label</label><input id="cfgAudioLabel"></div>
+    </div>
+    <div class="field"><label>Button style</label>
+      <select id="cfgBtnStyle">
+        <option value="tile">Square tile with icon</option>
+        <option value="pill">Wide pill</option>
+      </select>
+    </div>
+
+    <h4>Look</h4>
+    <div class="field"><label>Title font</label>
+      <select id="cfgFont">
+        <option value="didot">Elegant serif (Didot)</option>
+        <option value="script">Script (Snell Roundhand)</option>
+        <option value="serif">Classic serif (Georgia)</option>
+        <option value="sans">Clean sans</option>
+      </select>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Background</label><input id="cfgBgColor" type="color"></div>
+      <div class="field"><label>Text</label><input id="cfgTextColor" type="color"></div>
+      <div class="field"><label>Buttons</label><input id="cfgAccentColor" type="color"></div>
+    </div>
+    <div class="field">
+      <label>Background image</label>
+      <input id="cfgBgImageFile" type="file" accept="image/*">
+      <div id="bgImagePreviewWrap">
+        <img id="bgImagePreview" alt="">
+        <div class="row2">
+          <button id="editBgImage" class="admin-btn" type="button">Resize / crop</button>
+          <button id="removeBgImage" class="admin-btn" type="button">Remove</button>
+        </div>
+      </div>
+    </div>
+    <div class="field"><label>Image fit</label>
+      <select id="cfgBgFit">
+        <option value="cover">Fill screen</option>
+        <option value="contain">Show whole image</option>
+      </select>
+    </div>
+    <div class="field"><label>Darken image</label><input id="cfgDim" type="range" min="0" max="70" step="5"></div>
+
+    <h4>Recording &amp; output</h4>
+    <div class="field"><label>Max message length (seconds)</label><input id="cfgDuration" type="number" min="10" max="120" inputmode="numeric"></div>
+    <div class="field"><label>Message shown after Save</label><input id="cfgThanks"></div>
+    <div class="field"><label>Camera</label><select id="cfgCam"></select></div>
+    <div class="field"><label>Microphone (e.g. wired mic on the stand)</label><select id="cfgMic"></select></div>
+
+    <h4>Saved messages</h4>
+    <div id="storageInfo" class="storage"></div>
+    <button id="openMessages" class="admin-btn" style="background:rgba(255,255,255,.1);color:#fff;margin-top:0;">Saved messages (0)</button>
+
+    <h4>Security</h4>
+    <div class="field"><label>Admin password</label><input id="cfgPassword"></div>
+
+    <button id="adminDone" class="admin-btn">Done</button>
+    <button id="resetDesign" class="admin-btn">Reset design to defaults</button>
+    <p class="tip">Tip: open this page in Safari, tap Share → Add to Home Screen, then launch from the icon for a fullscreen, no-browser-bar look. Tap “Allow” on the camera/mic prompt once before guests arrive. Messages are stored inside the app — export them from “Saved messages” after the event.</p>
+  </div>
+
+  <!-- SAVED MESSAGES (admin overlay) -->
+  <div id="messages">
+    <div class="msg-top">
+      <button class="msg-btn" id="msgBack">&#8592; Back</button>
+      <h3 id="msgTitle">Saved messages</h3>
+      <span style="width:80px"></span>
+    </div>
+    <div id="msgStorage" class="storage msg-storage"></div>
+    <div class="msg-actions">
+      <button class="msg-btn" id="msgSelectAll">Select all</button>
+      <button class="msg-btn" id="msgSelectNew">Select not exported</button>
+      <button class="msg-btn primary" id="msgPrepare">Prepare export</button>
+      <button class="msg-btn danger" id="msgDelete">Delete selected</button>
+    </div>
+    <div id="msgExport">
+      <span id="msgExportInfo"></span>
+      <button class="msg-btn primary" id="msgShare">Share / Save to Photos</button>
+      <button class="msg-btn" id="msgDownload">Download</button>
+    </div>
+    <div id="msgList"></div>
+    <div class="msg-foot">Tick the messages you want, tap “Prepare export”, then “Share / Save to Photos” and choose Save Video(s). Export in batches of about 10–15 for best reliability, and keep a backup copy before deleting.</div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<!-- PLAYER -->
+<div id="playModal">
+  <button id="playClose" aria-label="Close">&#10005;</button>
+  <video id="playVideo" controls playsinline></video>
+  <audio id="playAudio" controls></audio>
+</div>
+
+<!-- IMAGE CROPPER -->
+<div id="cropper">
+  <div id="cropTop">
+    <select id="cropAspect">
+      <option value="screen">Fit this screen</option>
+      <option value="4:3">Landscape 4:3</option>
+      <option value="16:9">Landscape 16:9</option>
+      <option value="3:4">Portrait 3:4</option>
+      <option value="1:1">Square</option>
+    </select>
+    <span class="grow"></span>
+    <button id="cropRotate">&#10227; Rotate</button>
+  </div>
+  <div id="cropStage"><canvas id="cropCanvas"></canvas></div>
+  <div id="cropBottom">
+    <div id="cropZoomRow"><span>Zoom</span><input id="cropZoom" type="range" min="100" max="400" value="100"></div>
+    <div class="crop-hint">Drag to move · pinch or use the slider to zoom</div>
+    <div class="crop-btns">
+      <button id="cropCancel">Cancel</button>
+      <button id="cropApply">Apply</button>
+    </div>
+  </div>
+</div>
+
+<!-- PASSWORD MODAL -->
+<div id="passwordModal">
+  <div class="modal-box">
+    <h3 id="pwTitle">Enter password</h3>
+    <input id="pwInput" type="password" placeholder="••••">
+    <div id="pwError"></div>
+    <div class="modal-actions">
+      <button id="pwCancel">Cancel</button>
+      <button id="pwUnlock">Unlock</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  const $ = id => document.getElementById(id);
+
+  const FONTS = {
+    didot: '"Didot","Bodoni 72","Playfair Display",Georgia,serif',
+    script: '"Snell Roundhand","Apple Chancery","Brush Script MT",cursive',
+    serif: 'Georgia,"Times New Roman",serif',
+    sans: '-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif'
+  };
+
+  const ICON_CAM = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="13" height="12" rx="2.5"/><path d="M15.5 10.5l6-3.5v10l-6-3.5z"/></svg>';
+  const ICON_MIC = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5 11.5a7 7 0 0 0 14 0M12 18.5v3M8.5 21.5h7"/></svg>';
+
+  const DEFAULTS = {
+    title: 'Leave a message',
+    subtitle: 'for the bride & groom',
+    hint: 'Tap to record',
+    footer: '',
+    modes: 'both',           // both | video | audio
+    videoLabel: 'Video message',
+    audioLabel: 'Voice message',
+    btnStyle: 'tile',        // tile | pill
+    font: 'didot',
+    bgColor: '#efece6',
+    textColor: '#2a2a2a',
+    accentColor: '#ffffff',
+    dim: 0,
+    bgImage: null,
+    bgSource: null,          // un-cropped original, kept so the crop can be re-edited
+    bgFit: 'cover',          // cover | contain
+    thanks: 'Thank you! Your message has been saved.',
+    duration: 30,
+    camId: '',
+    micId: '',
+    password: '1234'
+  };
+
+  function loadConfig() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('boothConfigV2'));
+      return Object.assign({}, DEFAULTS, saved || {});
+    } catch (e) { return Object.assign({}, DEFAULTS); }
+  }
+  let config = loadConfig();
+  function saveConfig() {
+    try { localStorage.setItem('boothConfigV2', JSON.stringify(config)); return true; }
+    catch (e) { return false; }
+  }
+
+  // ---------- state ----------
+  const screens = { welcome: $('welcome'), recording: $('recording'), review: $('review'), admin: $('admin') };
+  let currentScreen = 'welcome';
+  let currentMode = 'video';
+  let mediaStream = null, mediaRecorder = null, chunks = [], recMime = '';
+  let timerInterval = null, secondsLeft = 0;
+  let discardOnStop = false, starting = false;
+  let lastBlob = null, reviewUrl = null;
+  let devicesLoaded = false;
+  let pendingPasswordSuccess = null;
+
+  function showScreen(name) {
+    closePasswordGate();
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens[name].classList.add('active');
+    document.body.classList.remove('admin-open');
+    currentScreen = name;
+  }
+
+  // ---------- helpers ----------
+  const pad = n => (n < 10 ? '0' + n : '' + n);
+  const fmt = s => { s = Math.max(0, s); return Math.floor(s / 60) + ':' + pad(s % 60); };
+  const esc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function lum(hex) {
+    let h = (hex || '#ffffff').replace('#', '');
+    if (h.length === 3) h = h.split('').map(c => c + c).join('');
+    const n = parseInt(h, 16);
+    return (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+  }
+
+  // ---------- apply design ----------
+  function renderModeButtons() {
+    const wrap = $('modeButtons');
+    wrap.className = 'style-' + config.btnStyle;
+    let html = '';
+    if (config.modes !== 'audio') html += '<button class="mode-btn" data-mode="video">' + ICON_CAM + '<span>' + esc(config.videoLabel) + '</span></button>';
+    if (config.modes !== 'video') html += '<button class="mode-btn" data-mode="audio">' + ICON_MIC + '<span>' + esc(config.audioLabel) + '</span></button>';
+    wrap.innerHTML = html;
+  }
+  $('modeButtons').addEventListener('click', e => {
+    const b = e.target.closest('.mode-btn');
+    if (b) startRecordingFlow(b.dataset.mode);
+  });
+
+  function applyConfigToUI() {
+    const r = document.documentElement.style;
+    r.setProperty('--bg', config.bgColor);
+    r.setProperty('--text', config.textColor);
+    r.setProperty('--accent', config.accentColor);
+    r.setProperty('--accent-text', lum(config.accentColor) > 0.6 ? '#111111' : '#ffffff');
+    r.setProperty('--dim', (config.dim || 0) / 100);
+    const f = FONTS[config.font] || FONTS.didot;
+    r.setProperty('--title-font', f);
+    r.setProperty('--body-font', config.font === 'script' ? FONTS.serif : f);
+
+    $('eventTitle').textContent = config.title;
+    $('eventSubtitle').textContent = config.subtitle;
+    $('eventHint').textContent = config.hint;
+    $('eventFooter').textContent = config.footer;
+    $('eventFooter').style.display = config.footer ? 'block' : 'none';
+
+    const w = $('welcome');
+    w.style.backgroundImage = config.bgImage ? 'url("' + config.bgImage + '")' : '';
+    w.style.backgroundSize = config.bgFit === 'contain' ? 'contain' : 'cover';
+    renderModeButtons();
+  }
+
+  // ---------- admin ----------
+  const DESIGN_IDS = ['cfgTitle', 'cfgSubtitle', 'cfgHint', 'cfgFooter', 'cfgModes', 'cfgVideoLabel', 'cfgAudioLabel',
+    'cfgFont', 'cfgBtnStyle', 'cfgBgColor', 'cfgTextColor', 'cfgAccentColor', 'cfgDim', 'cfgBgFit', 'cfgThanks'];
+
+  function readDesign() {
+    config.title = $('cfgTitle').value;
+    config.subtitle = $('cfgSubtitle').value;
+    config.hint = $('cfgHint').value;
+    config.footer = $('cfgFooter').value;
+    config.modes = $('cfgModes').value;
+    config.videoLabel = $('cfgVideoLabel').value || DEFAULTS.videoLabel;
+    config.audioLabel = $('cfgAudioLabel').value || DEFAULTS.audioLabel;
+    config.font = $('cfgFont').value;
+    config.btnStyle = $('cfgBtnStyle').value;
+    config.bgColor = $('cfgBgColor').value;
+    config.textColor = $('cfgTextColor').value;
+    config.accentColor = $('cfgAccentColor').value;
+    config.dim = parseInt($('cfgDim').value, 10) || 0;
+    config.bgFit = $('cfgBgFit').value;
+    config.thanks = $('cfgThanks').value;
+  }
+  DESIGN_IDS.forEach(id => {
+    ['input', 'change'].forEach(ev => $(id).addEventListener(ev, () => { readDesign(); saveConfig(); applyConfigToUI(); }));
+  });
+
+  function fillSelect(sel, devs, defLabel, current) {
+    sel.innerHTML = '';
+    const o0 = document.createElement('option'); o0.value = ''; o0.textContent = defLabel; sel.appendChild(o0);
+    devs.forEach((d, i) => {
+      const o = document.createElement('option'); o.value = d.deviceId; o.textContent = d.label || ('Device ' + (i + 1)); sel.appendChild(o);
+    });
+    sel.value = current || '';
+    if (sel.value !== (current || '')) sel.value = '';
+  }
+
+  async function populateDevices() {
+    devicesLoaded = false;
+    try {
+      let devices = await navigator.mediaDevices.enumerateDevices();
+      if (devices.some(d => !d.label)) {
+        try {
+          const s = await navigator.mediaDevices.getUserMedia({ audio: true, video: true });
+          s.getTracks().forEach(t => t.stop());
+          devices = await navigator.mediaDevices.enumerateDevices();
+        } catch (e) { /* permission denied – list stays unlabeled */ }
+      }
+      if (currentScreen !== 'admin') return;
+      fillSelect($('cfgCam'), devices.filter(d => d.kind === 'videoinput'), 'Default (front camera)', config.camId);
+      fillSelect($('cfgMic'), devices.filter(d => d.kind === 'audioinput'), 'Default microphone', config.micId);
+      devicesLoaded = true;
+    } catch (e) { /* enumerateDevices unsupported */ }
+  }
+
+  function updateBgPreview() {
+    if (config.bgImage) { $('bgImagePreview').src = config.bgImage; $('bgImagePreviewWrap').style.display = 'block'; }
+    else { $('bgImagePreviewWrap').style.display = 'none'; }
+  }
+
+  function populateAdminForm() {
+    $('cfgTitle').value = config.title;
+    $('cfgSubtitle').value = config.subtitle;
+    $('cfgHint').value = config.hint;
+    $('cfgFooter').value = config.footer;
+    $('cfgModes').value = config.modes;
+    $('cfgVideoLabel').value = config.videoLabel;
+    $('cfgAudioLabel').value = config.audioLabel;
+    $('cfgFont').value = config.font;
+    $('cfgBtnStyle').value = config.btnStyle;
+    $('cfgBgColor').value = config.bgColor;
+    $('cfgTextColor').value = config.textColor;
+    $('cfgAccentColor').value = config.accentColor;
+    $('cfgDim').value = config.dim;
+    $('cfgBgFit').value = config.bgFit;
+    $('cfgThanks').value = config.thanks;
+    $('cfgDuration').value = config.duration;
+    $('cfgPassword').value = config.password;
+    $('cfgBgImageFile').value = '';
+    fillSelect($('cfgCam'), [], 'Default (front camera)', '');
+    fillSelect($('cfgMic'), [], 'Default microphone', '');
+    updateBgPreview();
+  }
+
+  function openAdmin() {
+    closePasswordGate();
+    populateAdminForm();
+    Object.values(screens).forEach(s => s.classList.remove('active'));
+    screens.welcome.classList.add('active');
+    screens.admin.classList.add('active');
+    document.body.classList.add('admin-open');
+    currentScreen = 'admin';
+    populateDevices();
+    refreshCount();
+    checkHealth();
+  }
+
+  // ---------- background image: resize / crop ----------
+  const crop = { src: null, fw: 0, fh: 0, s: 1, minS: 1, ox: 0, oy: 0 };
+  const cropCv = $('cropCanvas');
+
+  function canvasFromImage(img, maxSide) {
+    const sc = Math.min(1, maxSide / Math.max(img.width, img.height));
+    const c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(img.width * sc)); c.height = Math.max(1, Math.round(img.height * sc));
+    c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+    return c;
+  }
+  function loadImage(url, cb, err) {
+    const img = new Image();
+    img.onload = () => cb(img);
+    img.onerror = err || (() => alert('Could not read that image.'));
+    img.src = url;
+  }
+  function aspectVal() {
+    const v = $('cropAspect').value;
+    if (v === '4:3') return 4 / 3;
+    if (v === '16:9') return 16 / 9;
+    if (v === '3:4') return 3 / 4;
+    if (v === '1:1') return 1;
+    return window.innerWidth / window.innerHeight;
+  }
+  function clampCrop() {
+    const W = crop.src.width * crop.s, H = crop.src.height * crop.s;
+    crop.ox = Math.min(0, Math.max(crop.fw - W, crop.ox));
+    crop.oy = Math.min(0, Math.max(crop.fh - H, crop.oy));
+  }
+  function drawCrop() {
+    const ctx = cropCv.getContext('2d');
+    ctx.fillStyle = '#000'; ctx.fillRect(0, 0, crop.fw, crop.fh);
+    ctx.drawImage(crop.src, crop.ox, crop.oy, crop.src.width * crop.s, crop.src.height * crop.s);
+    $('cropZoom').value = Math.round(100 * crop.s / crop.minS);
+  }
+  function layoutCrop(reset) {
+    const st = $('cropStage');
+    const aw = Math.max(50, st.clientWidth - 24), ah = Math.max(50, st.clientHeight - 24), a = aspectVal();
+    let fw = aw, fh = aw / a;
+    if (fh > ah) { fh = ah; fw = ah * a; }
+    crop.fw = Math.floor(fw); crop.fh = Math.floor(fh);
+    cropCv.width = crop.fw; cropCv.height = crop.fh;
+    cropCv.style.width = crop.fw + 'px'; cropCv.style.height = crop.fh + 'px';
+    crop.minS = Math.max(crop.fw / crop.src.width, crop.fh / crop.src.height);
+    if (reset) {
+      crop.s = crop.minS;
+      crop.ox = (crop.fw - crop.src.width * crop.s) / 2;
+      crop.oy = (crop.fh - crop.src.height * crop.s) / 2;
+    } else { crop.s = Math.max(crop.s, crop.minS); }
+    clampCrop(); drawCrop();
+  }
+  function openCropper(srcCanvas) {
+    crop.src = srcCanvas;
+    $('cropper').classList.add('active');
+    layoutCrop(true);
+  }
+  function closeCropper() { $('cropper').classList.remove('active'); $('cfgBgImageFile').value = ''; crop.src = null; }
+  function zoomAt(newS, px, py) {
+    newS = Math.min(crop.minS * 4, Math.max(crop.minS, newS));
+    const sx = (px - crop.ox) / crop.s, sy = (py - crop.oy) / crop.s;
+    crop.s = newS; crop.ox = px - sx * newS; crop.oy = py - sy * newS;
+    clampCrop(); drawCrop();
+  }
+
+  const ptrs = new Map();
+  cropCv.addEventListener('pointerdown', e => { cropCv.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); });
+  cropCv.addEventListener('pointermove', e => {
+    const prev = ptrs.get(e.pointerId);
+    if (!prev || !crop.src) return;
+    if (ptrs.size === 1) {
+      crop.ox += e.clientX - prev.x; crop.oy += e.clientY - prev.y;
+      clampCrop(); drawCrop();
+    } else if (ptrs.size === 2) {
+      const other = [...ptrs.entries()].find(([id]) => id !== e.pointerId)[1];
+      const d0 = Math.hypot(prev.x - other.x, prev.y - other.y), d1 = Math.hypot(e.clientX - other.x, e.clientY - other.y);
+      const r = cropCv.getBoundingClientRect();
+      if (d0 > 0) zoomAt(crop.s * d1 / d0, (e.clientX + other.x) / 2 - r.left, (e.clientY + other.y) / 2 - r.top);
+    }
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  });
+  ['pointerup', 'pointercancel'].forEach(ev => cropCv.addEventListener(ev, e => ptrs.delete(e.pointerId)));
+  $('cropZoom').addEventListener('input', () => zoomAt(crop.minS * $('cropZoom').value / 100, crop.fw / 2, crop.fh / 2));
+  $('cropAspect').addEventListener('change', () => layoutCrop(true));
+  $('cropRotate').addEventListener('click', () => {
+    const s = crop.src, c = document.createElement('canvas');
+    c.width = s.height; c.height = s.width;
+    const ctx = c.getContext('2d'); ctx.translate(c.width, 0); ctx.rotate(Math.PI / 2); ctx.drawImage(s, 0, 0);
+    crop.src = c; layoutCrop(true);
+  });
+  $('cropCancel').addEventListener('click', closeCropper);
+  $('cropApply').addEventListener('click', () => {
+    const k = 1800 / Math.max(crop.fw, crop.fh);
+    const out = document.createElement('canvas');
+    out.width = Math.round(crop.fw * k); out.height = Math.round(crop.fh * k);
+    out.getContext('2d').drawImage(crop.src, crop.ox * k, crop.oy * k, crop.src.width * crop.s * k, crop.src.height * crop.s * k);
+    const prevImg = config.bgImage, prevSrc = config.bgSource;
+    config.bgImage = out.toDataURL('image/jpeg', 0.88);
+    config.bgSource = crop.src.toDataURL('image/jpeg', 0.8);
+    if (!saveConfig()) {
+      config.bgSource = null;                       // drop the re-edit copy first if storage is tight
+      if (!saveConfig()) { config.bgImage = prevImg; config.bgSource = prevSrc; alert('That image is too large to store on this device. Try a smaller one.'); return; }
+    }
+    applyConfigToUI(); updateBgPreview(); closeCropper();
+  });
+  window.addEventListener('resize', () => { if (crop.src && $('cropper').classList.contains('active')) layoutCrop(true); });
+
+  $('cfgBgImageFile').addEventListener('change', e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    loadImage(url, img => { URL.revokeObjectURL(url); openCropper(canvasFromImage(img, 2000)); }, () => { URL.revokeObjectURL(url); alert('Could not read that image.'); });
+  });
+  $('editBgImage').addEventListener('click', () => {
+    const url = config.bgSource || config.bgImage;
+    if (url) loadImage(url, img => openCropper(canvasFromImage(img, 2000)));
+  });
+  $('removeBgImage').addEventListener('click', () => { config.bgImage = null; config.bgSource = null; saveConfig(); applyConfigToUI(); updateBgPreview(); });
+
+  $('resetDesign').addEventListener('click', () => {
+    if (!confirm('Reset the welcome screen design to defaults?')) return;
+    const keep = { password: config.password, duration: config.duration, camId: config.camId, micId: config.micId };
+    config = Object.assign({}, DEFAULTS, keep);
+    saveConfig(); applyConfigToUI(); populateAdminForm(); populateDevices();
+  });
+
+  $('adminDone').addEventListener('click', () => {
+    readDesign();
+    config.duration = Math.min(120, Math.max(10, parseInt($('cfgDuration').value, 10) || DEFAULTS.duration));
+    if (devicesLoaded) { config.camId = $('cfgCam').value; config.micId = $('cfgMic').value; }
+    const pw = $('cfgPassword').value.trim();
+    if (pw) config.password = pw;
+    saveConfig(); applyConfigToUI();
+    showScreen('welcome');
+  });
+
+  // ---------- password modal ----------
+  const pwModal = $('passwordModal'), pwInput = $('pwInput'), pwError = $('pwError');
+  function openPasswordGate(title, onSuccess) {
+    $('pwTitle').textContent = title;
+    pwInput.value = ''; pwError.textContent = '';
+    pwInput.setAttribute('inputmode', /^\d+$/.test(config.password) ? 'numeric' : 'text');
+    pendingPasswordSuccess = onSuccess;
+    pwModal.classList.add('active');
+    setTimeout(() => pwInput.focus(), 50);
+  }
+  function closePasswordGate() { pwModal.classList.remove('active'); pendingPasswordSuccess = null; pwInput.blur(); }
+  function attemptPassword() {
+    if (pwInput.value === config.password) {
+      const cb = pendingPasswordSuccess;
+      closePasswordGate();
+      if (cb) cb();
+    } else { pwError.textContent = 'Incorrect password'; pwInput.value = ''; }
+  }
+  $('pwCancel').addEventListener('click', closePasswordGate);
+  $('pwUnlock').addEventListener('click', attemptPassword);
+  pwInput.addEventListener('keydown', e => { if (e.key === 'Enter') attemptPassword(); });
+
+  $('gearBtn').addEventListener('click', () => openPasswordGate('Enter password for settings', openAdmin));
+
+  // ---------- recording ----------
+  function pickMime(mode) {
+    const list = mode === 'video'
+      ? ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+      : ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg'];
+    for (const m of list) { if (MediaRecorder.isTypeSupported(m)) return m; }
+    return '';
+  }
+
+  async function getStream(mode) {
+    const audio = config.micId ? { deviceId: { exact: config.micId } } : true;
+    const video = mode === 'video'
+      ? (config.camId ? { deviceId: { exact: config.camId } } : { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } })
+      : false;
+    try {
+      return await navigator.mediaDevices.getUserMedia({ audio, video });
+    } catch (e) {
+      if (e.name === 'OverconstrainedError' || e.name === 'NotFoundError') { // saved device unplugged → fall back to defaults
+        return await navigator.mediaDevices.getUserMedia({ audio: true, video: mode === 'video' ? { facingMode: 'user' } : false });
+      }
+      throw e;
+    }
+  }
+
+  function stopStream() {
+    if (mediaStream) { mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  }
+
+  async function startRecordingFlow(mode) {
+    if (starting || currentScreen !== 'welcome') return;
+    await checkHealth();
+    if (health.level === 'full') { showToast('Sorry, the booth is out of space. Please ask the host.'); return; }
+    if (!window.MediaRecorder || !navigator.mediaDevices) {
+      alert('This browser does not support recording. Please update iPadOS / Safari.');
+      return;
+    }
+    starting = true;
+    currentMode = mode;
+    discardOnStop = false;
+    $('recording').classList.toggle('audio-mode', mode === 'audio');
+    $('timerText').textContent = fmt(config.duration);
+    $('recDot').classList.remove('on');
+    $('doneBtn').classList.remove('visible');
+    $('getReady').style.display = 'block';
+    showScreen('recording');
+
+    try {
+      mediaStream = await getStream(mode);
+    } catch (err) {
+      starting = false;
+      alert('Camera / microphone access is needed to record a message.');
+      showScreen('welcome');
+      return;
+    }
+    if (currentScreen !== 'recording') { stopStream(); starting = false; return; }
+
+    if (mode === 'video') {
+      const v = $('video');
+      v.srcObject = mediaStream;
+      v.classList.toggle('mirror', !config.camId);
+      v.play().catch(() => {});
+    }
+    setTimeout(() => {
+      starting = false;
+      if (!mediaStream || currentScreen !== 'recording') return;
+      $('getReady').style.display = 'none';
+      beginRecording();
+    }, 600);
+  }
+
+  function beginRecording() {
+    chunks = [];
+    recMime = pickMime(currentMode);
+    try { mediaRecorder = recMime ? new MediaRecorder(mediaStream, { mimeType: recMime }) : new MediaRecorder(mediaStream); }
+    catch (e) { mediaRecorder = new MediaRecorder(mediaStream); }
+    const rec = mediaRecorder;
+    rec.ondataavailable = e => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+    rec.onstop = () => onRecordingStopped(rec);
+    rec.start(1000);
+
+    $('recDot').classList.add('on');
+    $('doneBtn').classList.add('visible');
+    secondsLeft = config.duration;
+    $('timerText').textContent = fmt(secondsLeft);
+    clearInterval(timerInterval);
+    timerInterval = setInterval(() => {
+      secondsLeft -= 1;
+      $('timerText').textContent = fmt(secondsLeft);
+      if (secondsLeft <= 0) stopRecording();
+    }, 1000);
+  }
+
+  function stopRecording() {
+    clearInterval(timerInterval);
+    $('doneBtn').classList.remove('visible');
+    $('recDot').classList.remove('on');
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+
+  function onRecordingStopped(rec) {
+    stopStream();
+    if (discardOnStop) { chunks = []; return; }
+    const type = (rec.mimeType || recMime || (currentMode === 'video' ? 'video/mp4' : 'audio/mp4')).split(';')[0];
+    const blob = new Blob(chunks, { type });
+    if (!blob.size) { showScreen('welcome'); return; }
+    lastBlob = blob;
+    showReview(blob);
+  }
+
+  $('doneBtn').addEventListener('click', stopRecording);
+
+  $('backBtn').addEventListener('click', () => {
+    openPasswordGate('Enter password to exit', () => {
+      if (currentScreen !== 'recording') return; // recording already finished while the box was open
+      discardOnStop = true;
+      stopRecording();
+      stopStream();
+      starting = false;
+      showScreen('welcome');
+    });
+  });
+
+  // ---------- review ----------
+  function showReview(blob) {
+    if (reviewUrl) URL.revokeObjectURL(reviewUrl);
+    reviewUrl = URL.createObjectURL(blob);
+    const isVideo = currentMode === 'video';
+    $('review').classList.toggle('audio-mode', !isVideo);
+    $('saveBtn').disabled = false;
+    const el = isVideo ? $('reviewVideo') : $('reviewAudio');
+    el.src = reviewUrl;
+    showScreen('review');
+    el.play().catch(() => {});
+  }
+
+  function clearReview() {
+    ['reviewVideo', 'reviewAudio'].forEach(id => { const el = $(id); el.pause(); el.removeAttribute('src'); el.load(); });
+    if (reviewUrl) { URL.revokeObjectURL(reviewUrl); reviewUrl = null; }
+    lastBlob = null;
+  }
+
+  $('discardBtn').addEventListener('click', () => { clearReview(); showScreen('welcome'); });
+
+  function extFor(type) {
+    if (type.indexOf('mp4') > -1) return currentMode === 'audio' ? 'm4a' : 'mp4';
+    if (type.indexOf('webm') > -1) return 'webm';
+    if (type.indexOf('ogg') > -1) return 'ogg';
+    return currentMode === 'audio' ? 'm4a' : 'mp4';
+  }
+
+  // ---------- storage for saved messages (IndexedDB, entirely on-device) ----------
+  let dbp = null;
+  function getDB() {
+    if (!dbp) {
+      dbp = new Promise((res, rej) => {
+        const r = indexedDB.open('boothMessages', 1);
+        r.onupgradeneeded = () => {
+          r.result.createObjectStore('meta', { keyPath: 'id' });
+          r.result.createObjectStore('data', { keyPath: 'id' });
+        };
+        r.onsuccess = () => {
+          const db = r.result;
+          db.onclose = () => { dbp = null; };                       // iOS can close idle connections – reopen next time
+          db.onversionchange = () => { db.close(); dbp = null; };
+          res(db);
+        };
+        r.onerror = () => rej(r.error);
+      });
+      dbp.catch(() => { dbp = null; });                              // never cache a failed open – retry next call
+    }
+    return dbp;
+  }
+  function tx(stores, mode, fn) {
+    return getDB().then(db => new Promise((res, rej) => {
+      let t, out;
+      try { t = db.transaction(stores, mode); out = fn(t); } catch (e) { dbp = null; rej(e); return; }
+      t.oncomplete = () => res(out && out.result !== undefined ? out.result : undefined);
+      t.onerror = t.onabort = () => rej(t.error);
+    }));
+  }
+  const blobToBuffer = b => b.arrayBuffer ? b.arrayBuffer() : new Promise((res, rej) => {
+    const fr = new FileReader(); fr.onload = () => res(fr.result); fr.onerror = () => rej(fr.error); fr.readAsArrayBuffer(b);
+  });
+  async function saveMessage(blob, name, mode) {
+    const buf = await blobToBuffer(blob);
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    await tx(['meta', 'data'], 'readwrite', t => {
+      t.objectStore('meta').put({ id, name, type: blob.type, mode, created: Date.now(), size: blob.size, exported: false });
+      t.objectStore('data').put({ id, buf });
+    });
+    // verify: read the clip back and make sure every byte is there before we tell the guest it's saved
+    const back = await dbData(id);
+    if (!back || back.byteLength !== blob.size) {
+      try { await dbDelete([id]); } catch (e) {}
+      throw new Error('verify failed');
+    }
+  }
+
+  // try twice; if the on-device store keeps failing, fall back to a file download so the message is never thrown away
+  async function persistMessage(blob, name, mode) {
+    for (let i = 0; i < 2; i++) {
+      try { await saveMessage(blob, name, mode); return 'db'; }
+      catch (e) { await new Promise(r => setTimeout(r, 400)); }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    await new Promise(r => setTimeout(r, 800)); URL.revokeObjectURL(url);
+    return 'file';
+  }
+
+  // ---------- storage health ----------
+  const LOW_FREE = 1073741824, FULL_FREE = 157286400, EXPORT_REMINDER = 15;
+  let health = { level: 'ok', usage: 0, quota: 0, free: 0, info: false, persisted: null, unexported: 0, total: 0 };
+  async function checkHealth() {
+    let est = null;
+    try { if (navigator.storage && navigator.storage.estimate) est = await navigator.storage.estimate(); } catch (e) {}
+    const h = { level: 'ok', usage: 0, quota: 0, free: 0, info: false, persisted: null, unexported: 0, total: 0 };
+    if (est && est.quota) {
+      h.usage = est.usage || 0; h.quota = est.quota; h.free = Math.max(0, h.quota - h.usage); h.info = true;
+      h.level = h.free < FULL_FREE ? 'full' : (h.free < LOW_FREE ? 'low' : 'ok');
+    }
+    try { if (navigator.storage && navigator.storage.persisted) h.persisted = await navigator.storage.persisted(); } catch (e) {}
+    try { const m = await dbMeta(); h.total = m.length; h.unexported = m.filter(x => !x.exported).length; } catch (e) {}
+    health = h; renderHealth(); return h;
+  }
+  function renderHealth() {
+    const h = health, notes = [];
+    if (h.level === 'full') notes.push('Storage is almost full (' + fmtSize(h.free) + ' free). New messages are paused — export and delete some now.');
+    else if (h.level === 'low') notes.push('Storage is getting low (' + fmtSize(h.free) + ' free). Export and delete messages soon.');
+    if (h.unexported >= EXPORT_REMINDER) notes.push(h.unexported + ' messages have not been exported yet — export a batch when you get a moment.');
+    $('gearDot').classList.toggle('on', notes.length > 0);
+    const b = $('healthBanner'); b.textContent = notes.join(' '); b.className = notes.length ? 'on ' + (h.level === 'full' ? 'full' : '') : '';
+    let html;
+    if (h.info) {
+      const pct = Math.min(100, Math.round(100 * h.usage / h.quota));
+      html = 'Used ' + fmtSize(h.usage) + ' · ' + fmtSize(h.free) + ' free<div class="bar"><i style="width:' + pct + '%"></i></div>';
+    } else { html = 'Storage details are not available on this browser.'; }
+    if (h.persisted === true) html += '<div>Protected from automatic clearing: yes</div>';
+    else if (h.persisted === false) html += '<div>Protected from automatic clearing: no — export often</div>';
+    ['storageInfo', 'msgStorage'].forEach(id => { const el = $(id); el.innerHTML = html; el.className = 'storage' + (id === 'msgStorage' ? ' msg-storage' : '') + ' ' + h.level; });
+  }
+  const dbMeta = () => tx(['meta'], 'readonly', t => t.objectStore('meta').getAll());
+  const dbData = id => tx(['data'], 'readonly', t => t.objectStore('data').get(id)).then(r => r && r.buf);
+  const dbDelete = ids => tx(['meta', 'data'], 'readwrite', t => { ids.forEach(id => { t.objectStore('meta').delete(id); t.objectStore('data').delete(id); }); });
+  const dbMark = ids => tx(['meta'], 'readwrite', t => {
+    const st = t.objectStore('meta');
+    ids.forEach(id => { const r = st.get(id); r.onsuccess = () => { if (r.result) { r.result.exported = true; st.put(r.result); } }; });
+  });
+  if (navigator.storage && navigator.storage.persist) { try { navigator.storage.persist().then(() => checkHealth()); } catch (e) {} }
+
+  let toastTimer = null;
+  function showToast(text) {
+    if (!text) return;
+    const t = $('toast'); t.textContent = text; t.classList.add('show');
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2600);
+  }
+
+  $('saveBtn').addEventListener('click', async () => {
+    if (!lastBlob) { showScreen('welcome'); return; }
+    const btn = $('saveBtn');
+    btn.disabled = true;
+    const blob = lastBlob;
+    const d = new Date();
+    const stamp = d.getFullYear() + pad(d.getMonth() + 1) + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes()) + pad(d.getSeconds());
+    const name = 'message-' + stamp + '.' + extFor(blob.type);
+    const where = await persistMessage(blob, name, currentMode);
+    clearReview();
+    showScreen('welcome');
+    showToast(where === 'db' ? config.thanks : 'Saved as a file in Files — please let the host know.');
+    checkHealth();
+  });
+
+  // ---------- saved messages screen (admin) ----------
+  let msgMeta = [], selected = new Set(), prepared = null, preparedIds = [], playUrl = null;
+
+  async function refreshCount() {
+    try {
+      const m = await dbMeta(), un = m.filter(x => !x.exported).length;
+      $('openMessages').textContent = 'Saved messages (' + m.length + (un ? ' · ' + un + ' not exported' : '') + ')';
+      return m;
+    }
+    catch (e) { return []; }
+  }
+  function clearPrepared() { prepared = null; $('msgExport').classList.remove('on'); }
+  function fmtSize(n) {
+    if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB';
+    return n > 1048576 ? (n / 1048576).toFixed(0) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  }
+
+  async function renderMessages() {
+    msgMeta = (await refreshCount()).sort((a, b) => b.created - a.created);
+    selected = new Set([...selected].filter(id => msgMeta.some(m => m.id === id)));
+    $('msgTitle').textContent = 'Saved messages (' + msgMeta.length + ')';
+    const list = $('msgList'); list.innerHTML = '';
+    if (!msgMeta.length) { const p = document.createElement('div'); p.className = 'msg-empty'; p.textContent = 'No messages saved yet.'; list.appendChild(p); return; }
+    msgMeta.forEach(m => {
+      const row = document.createElement('div'); row.className = 'msg-row';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = selected.has(m.id);
+      cb.addEventListener('change', () => { cb.checked ? selected.add(m.id) : selected.delete(m.id); clearPrepared(); });
+      const info = document.createElement('div'); info.className = 'info';
+      const t = document.createElement('div'); t.className = 't'; t.textContent = (m.mode === 'audio' ? '🎙 Voice' : '🎥 Video') + ' · ' + new Date(m.created).toLocaleString();
+      const sub = document.createElement('div'); sub.className = 's'; sub.textContent = m.name + ' · ' + fmtSize(m.size) + (m.exported ? ' · ✓ exported' : ' · not exported yet');
+      info.appendChild(t); info.appendChild(sub);
+      const play = document.createElement('button'); play.className = 'msg-btn'; play.textContent = '▶ Play';
+      play.addEventListener('click', () => playMessage(m));
+      row.appendChild(cb); row.appendChild(info); row.appendChild(play);
+      list.appendChild(row);
+    });
+  }
+
+  async function playMessage(m) {
+    const buf = await dbData(m.id);
+    if (!buf) { alert('Could not load that message.'); return; }
+    if (playUrl) URL.revokeObjectURL(playUrl);
+    playUrl = URL.createObjectURL(new Blob([buf], { type: m.type }));
+    const isV = m.mode !== 'audio';
+    $('playVideo').style.display = isV ? 'block' : 'none';
+    $('playAudio').style.display = isV ? 'none' : 'block';
+    const el = isV ? $('playVideo') : $('playAudio');
+    el.src = playUrl;
+    $('playModal').classList.add('active');
+    el.play().catch(() => {});
+  }
+  $('playClose').addEventListener('click', () => {
+    ['playVideo', 'playAudio'].forEach(id => { const el = $(id); el.pause(); el.removeAttribute('src'); el.load(); });
+    if (playUrl) { URL.revokeObjectURL(playUrl); playUrl = null; }
+    $('playModal').classList.remove('active');
+  });
+
+  $('openMessages').addEventListener('click', () => { selected.clear(); clearPrepared(); $('messages').classList.add('active'); renderMessages(); });
+  $('msgBack').addEventListener('click', () => { clearPrepared(); $('messages').classList.remove('active'); refreshCount(); });
+  $('msgSelectAll').addEventListener('click', () => {
+    const all = selected.size === msgMeta.length && msgMeta.length > 0;
+    selected = all ? new Set() : new Set(msgMeta.map(m => m.id));
+    clearPrepared();
+    document.querySelectorAll('#msgList input[type=checkbox]').forEach(cb => { cb.checked = !all; });
+  });
+  $('msgSelectNew').addEventListener('click', () => {
+    selected = new Set(msgMeta.filter(m => !m.exported).map(m => m.id));
+    clearPrepared();
+    document.querySelectorAll('#msgList .msg-row').forEach((row, i) => { row.querySelector('input').checked = selected.has(msgMeta[i].id); });
+  });
+  $('msgDelete').addEventListener('click', async () => {
+    if (!selected.size) { alert('Select at least one message.'); return; }
+    const un = [...selected].filter(id => { const m = msgMeta.find(x => x.id === id); return m && !m.exported; }).length;
+    if (!confirm('Delete ' + selected.size + ' message(s) from this iPad? This cannot be undone.' + (un ? '\n\n' + un + ' of them have NOT been exported yet.' : ''))) return;
+    await dbDelete([...selected]); selected.clear(); clearPrepared(); await renderMessages(); checkHealth();
+  });
+  $('msgPrepare').addEventListener('click', async () => {
+    if (!selected.size) { alert('Select at least one message.'); return; }
+    const ex = $('msgExport'); ex.classList.add('on'); $('msgExportInfo').textContent = 'Preparing…';
+    $('msgShare').disabled = true; $('msgDownload').disabled = true;
+    const files = []; preparedIds = [];
+    for (const id of selected) {
+      const m = msgMeta.find(x => x.id === id); const buf = await dbData(id);
+      if (m && buf) { files.push(new File([buf], m.name, { type: m.type })); preparedIds.push(id); }
+    }
+    prepared = files;
+    const total = files.reduce((n, f) => n + f.size, 0);
+    $('msgExportInfo').textContent = files.length + ' file(s) ready · ' + fmtSize(total);
+    $('msgShare').disabled = !(navigator.canShare && navigator.canShare({ files }));
+    $('msgDownload').disabled = false;
+  });
+  $('msgShare').addEventListener('click', async () => {
+    if (!prepared) return;
+    try {
+      await navigator.share({ files: prepared });
+      await dbMark(preparedIds); await renderMessages(); checkHealth();
+    } catch (e) { if (!e || e.name !== 'AbortError') alert('Sharing failed. Try a smaller batch or use Download.'); }
+  });
+  $('msgDownload').addEventListener('click', async () => {
+    if (!prepared) return;
+    for (const f of prepared) {
+      const url = URL.createObjectURL(f);
+      const a = document.createElement('a'); a.href = url; a.download = f.name;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      await new Promise(r => setTimeout(r, 700)); URL.revokeObjectURL(url);
+    }
+    await dbMark(preparedIds); await renderMessages(); checkHealth();
+  });
+
+  // ---------- misc ----------
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  async function keepAwake() { try { if ('wakeLock' in navigator) await navigator.wakeLock.request('screen'); } catch (e) {} }
+  keepAwake();
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') keepAwake(); });
+
+  applyConfigToUI();
+  checkHealth();
+})();
+</script>
+<script>
+if ("serviceWorker" in navigator) { window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); }); }
+</script>
+</body>
+</html>
